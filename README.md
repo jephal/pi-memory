@@ -27,7 +27,7 @@ Then reload Pi:
 
 ## Usage
 
-Explicitly save a memory:
+Explicitly save a memory (the `/remember` shortcut marks it as core memory by default):
 
 ```text
 /remember I prefer TypeScript for new Pi extensions.

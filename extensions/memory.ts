@@ -209,6 +209,7 @@ function registerMemoryCommands(pi: ExtensionAPI): void {
 				category: "fact",
 				tags: [],
 				importance: 0.7,
+				alwaysInject: true,
 				source: { sessionId: ctx.sessionManager.getSessionId() },
 			}));
 			ctx.ui.notify(`Saved memory ${record.id}.`, "info");
