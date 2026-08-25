@@ -13,6 +13,7 @@ export interface MemoryRecord {
 	category: MemoryCategory;
 	tags: string[];
 	importance: number;
+	alwaysInject: boolean;
 	retrievalCount: number;
 	confirmationCount: number;
 	createdAt: string;
@@ -37,4 +38,5 @@ export interface MemoryUpdate {
 	category?: MemoryCategory;
 	tags?: string[];
 	importance?: number;
+	alwaysInject?: boolean;
 }

@@ -43,6 +43,7 @@ function toRecord(row: Row): MemoryRecord {
 		category: String(row.category) as MemoryCategory,
 		tags: parseTags(row.tags_json),
 		importance: Number(row.importance ?? 0.5),
+		alwaysInject: Number(row.always_inject ?? 0) === 1,
 		retrievalCount: Number(row.retrieval_count ?? 0),
 		confirmationCount: Number(row.confirmation_count ?? 0),
 		createdAt: String(row.created_at),
@@ -71,6 +72,7 @@ export class MemoryStore {
 				category TEXT NOT NULL CHECK (category IN ('preference', 'fact', 'decision', 'workflow')),
 				tags_json TEXT NOT NULL DEFAULT '[]',
 				importance REAL NOT NULL DEFAULT 0.5 CHECK (importance >= 0 AND importance <= 1),
+				always_inject INTEGER NOT NULL DEFAULT 0 CHECK (always_inject IN (0, 1)),
 				retrieval_count INTEGER NOT NULL DEFAULT 0,
 				confirmation_count INTEGER NOT NULL DEFAULT 0,
 				created_at TEXT NOT NULL,
@@ -82,6 +84,11 @@ export class MemoryStore {
 			CREATE INDEX IF NOT EXISTS memories_scope_idx ON memories(scope);
 			CREATE INDEX IF NOT EXISTS memories_updated_idx ON memories(updated_at);
 		`);
+		try {
+			this.db.exec("ALTER TABLE memories ADD COLUMN always_inject INTEGER NOT NULL DEFAULT 0");
+		} catch {
+			// Existing databases already have the column.
+		}
 	}
 
 	private transaction<T>(operation: () => T): T {
@@ -107,14 +114,15 @@ export class MemoryStore {
 		category: MemoryCategory;
 		tags: string[];
 		importance: number;
+		alwaysInject?: boolean;
 		source?: MemorySource;
 	}): MemoryRecord {
 		const now = new Date().toISOString();
 		const id = `mem_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
 		this.db.prepare(`
 			INSERT INTO memories
-			(id, content, scope, category, tags_json, importance, confirmation_count, created_at, updated_at, source_json)
-			VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+			(id, content, scope, category, tags_json, importance, always_inject, confirmation_count, created_at, updated_at, source_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
 		`).run(
 			id,
 			input.content.trim(),
@@ -122,6 +130,7 @@ export class MemoryStore {
 			input.category,
 			JSON.stringify(normalizeTags(input.tags)),
 			Math.max(0, Math.min(1, input.importance)),
+			input.alwaysInject ? 1 : 0,
 			now,
 			now,
 			input.source ? JSON.stringify(input.source) : null,
@@ -154,6 +163,25 @@ export class MemoryStore {
 		return this.search("", { ...options, recordUsage: false });
 	}
 
+	core(options: { limit?: number; maxChars?: number } = {}): MemoryRecord[] {
+		const limit = Math.max(1, Math.min(options.limit ?? 10, 50));
+		const rows = this.db.prepare(`
+			SELECT * FROM memories
+			WHERE deleted_at IS NULL AND scope = 'user' AND always_inject = 1
+			ORDER BY importance DESC, confirmation_count DESC, updated_at DESC
+			LIMIT ?
+		`).all(limit) as Row[];
+		const records = rows.map(toRecord);
+		if (options.maxChars === undefined) return records;
+		let used = 0;
+		return records.filter((record) => {
+			const size = record.content.length;
+			if (used + size > options.maxChars!) return false;
+			used += size;
+			return true;
+		});
+	}
+
 	update(id: string, changes: MemoryUpdate): MemoryRecord | undefined {
 		const current = this.get(id);
 		if (!current) return undefined;
@@ -166,11 +194,12 @@ export class MemoryStore {
 		if (changes.category !== undefined) next.category = changes.category;
 		if (changes.tags !== undefined) next.tags = normalizeTags(changes.tags);
 		if (changes.importance !== undefined) next.importance = changes.importance;
+		if (changes.alwaysInject !== undefined) next.alwaysInject = changes.alwaysInject;
 		this.db.prepare(`
 			UPDATE memories
-			SET content = ?, scope = ?, category = ?, tags_json = ?, importance = ?, updated_at = ?
+			SET content = ?, scope = ?, category = ?, tags_json = ?, importance = ?, always_inject = ?, updated_at = ?
 			WHERE id = ? AND deleted_at IS NULL
-		`).run(next.content.trim(), next.scope, next.category, JSON.stringify(next.tags), Math.max(0, Math.min(1, next.importance)), next.updatedAt, id);
+		`).run(next.content.trim(), next.scope, next.category, JSON.stringify(next.tags), Math.max(0, Math.min(1, next.importance)), next.alwaysInject ? 1 : 0, next.updatedAt, id);
 		return this.get(id);
 	}
 
