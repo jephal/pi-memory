@@ -7,6 +7,9 @@
   "keywords": ["pi-package", "pi", "memory", "sqlite", "agent"],
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "files": [
     "extensions",
     "src",
