@@ -1,0 +1,25 @@
+{
+  "name": "pi-memory",
+  "version": "0.0.1",
+  "description": "Lean local SQLite memory for pi",
+  "repository": "https://github.com/jephal/pi-memory.git",
+  "homepage": "https://github.com/jephal/pi-memory#readme",
+  "keywords": ["pi-package", "pi", "memory", "sqlite", "agent"],
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/memory.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}
